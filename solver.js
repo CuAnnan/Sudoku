@@ -35,6 +35,15 @@ class SudokuSpace
         return this.cells[index];
     }
 
+    updateKnownValues()
+    {
+        let {knownValues, unknownCells} = this.getValues();
+        for(let cell of unknownCells)
+        {
+            cell.updateKnownValues(knownValues);
+        }
+    }
+
     /**
      * Run a search through the cells to see if, given the known cell values in the space, any new digits can be found.
      * @returns {Number} returns the number of cells that have been changed by this pass.
@@ -152,6 +161,14 @@ class SudokuCell
         this.value = value;
     }
 
+    updateKnownValues(knownValues)
+    {
+        for(let value of knownValues)
+        {
+            this.possibleValues[value] = false;
+        }
+    }
+
     /**
      * This method takes the values that are known by the search space it belongs to and sets those values in this cell
      * to false. If there is only one possible cell remaining, the value of this cell is set to that and the method
@@ -161,10 +178,7 @@ class SudokuCell
      */
     makePass(knownValues)
     {
-        for(let value of knownValues)
-        {
-            this.possibleValues[value] = false;
-        }
+        this.updateKnownValues(knownValues)
         let remainingPossibleValues = [];
         for(let [value, possible] of Object.entries(this.possibleValues))
         {
@@ -332,6 +346,16 @@ class Sudoku
         }
     }
 
+    updateKnownValues()
+    {
+        for(let i = 0; i < 9; i++)
+        {
+            this.rows[i].updateKnownValues();
+            this.cols[i].updateKnownValues();
+            this.grids[i].updateKnownValues();
+        }
+    }
+
     /**
      * This method isn't currently used but will turn this SudokuGrid into an array of numbers identical to the
      * requirements of the constructor
@@ -372,23 +396,6 @@ class Sudoku
         return changed;
     }
 
-    makeBasicSearchSpacePass(space, i)
-    {
-        if(!this.spaces.includes(space))
-        {
-            throw new Error(`Unexpected search space ${space} provided.\nSpace must match one of ${this.spaces.join(', ')}`)
-        }
-        return this[space][i].makePass();
-    }
-
-    makeSingleAvailabilitySearchSpacePass(space, i)
-    {
-        if(!this.spaces.includes(space))
-        {
-            throw new Error(`Unexpected search space ${space} provided.\nSpace must match one of ${this.spaces.join(', ')}`)
-        }
-        return this[space][i].checkForSingleAvailabilities();
-    }
 
     /**
      * Check whether any single value cells have been derived.
@@ -477,6 +484,7 @@ class Sudoku
     {
         buildSudokuHTML();
         let rawInput = $sudokuInput.val();
+        console.log(rawInput);
         let rows = rawInput.split('\n');
         allValues = [];
         let valid = rows.length === 9;
@@ -528,7 +536,6 @@ class Sudoku
 
     function solveSodoku()
     {
-        solver = new Sudoku(allValues);
         $('.space').removeClass('invalidSpace')
         let result = solver.validate();
         if(!result.valid)
@@ -541,17 +548,30 @@ class Sudoku
 
     function makePass()
     {
+        let working=    makeSinglePass();
+        if(working)
+        {
+            timeout = window.setTimeout(makePass,500);
+        }
+    }
+
+    function makeSinglePass()
+    {
         let working = solver.makeBasicPass();
-        console.log(working);
         if(!working)
         {
             working = solver.checkForSingleAvailabilities();
         }
         showUpdatedGrid();
-        if(working)
-        {
-            timeout = window.setTimeout(makePass,500);
-        }
+        return working;
+    }
+
+    function buildRelevantGrid()
+    {
+        updateGrid();
+        solver = new Sudoku(allValues);
+        solver.updateKnownValues();
+        showUpdatedGrid();
     }
 
     let allValues;
@@ -559,13 +579,35 @@ class Sudoku
     let $sudokuInput;
     let $sudokuContainer;
     let $solveButton;
+    let $passButton;
+    let $showHelpersToggle;
     let timeout;
 
     // jquery document onload handler
     $(function(){
         $sudokuContainer = $('#sudokuContainer');
-        $sudokuInput = $('#sudokuValue').on("input", ()=>{updateGrid();});
+        $sudokuInput = $('#sudokuValue').on("input", ()=>{
+            buildRelevantGrid();
+        });
         $solveButton = $('#solveButton').on('click', ()=>{solveSodoku();});
-        buildSudokuHTML();
+        $passButton = $('#passButton').on('click', ()=>{makeSinglePass();});
+        buildRelevantGrid();
+        let $emptyCellCells = $('.emptyCellCell');
+        let shower = ()=>{
+            if($showHelpersToggle.is(':checked'))
+            {
+                $emptyCellCells.show();
+            }
+            else
+            {
+                $emptyCellCells.hide();
+            }
+        };
+
+        $showHelpersToggle = $('#showHelperCells').on('change', function(evt){
+            shower()
+        });
+        shower();
+
     });
 })(window.jQuery);

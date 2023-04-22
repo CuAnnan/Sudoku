@@ -45,6 +45,16 @@
         {
             background-color:#ffaaaa;
         }
+
+        .emptyCellCell
+        {
+            display:none;
+        }
+
+        #sudokuValue
+        {
+            font-family:Consolas,Monaco,Lucida Console,Liberation Mono,DejaVu Sans Mono,Bitstream Vera Sans Mono,Courier New, monospace
+        }
     </style>
 </head>
 <body>
@@ -59,7 +69,19 @@
                 </div>
                 <div class="row">
                     <div class="col">
-                        <button class="btn btn-primary" id="solveButton">Solve</button>
+                        <div class="row">
+                            <div class="col">
+                                <button class="btn btn-primary" id="passButton">Make single Pass</button>
+                                <button class="btn btn-primary" id="solveButton">Solve</button>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="showHelperCells">
+                                <label class="form-check-label" for="showHelperCells">Show Helper Cells</label>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
             </div>
