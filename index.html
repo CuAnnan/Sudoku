@@ -13,6 +13,16 @@
             font-size: 45px;
         }
 
+        .sudokuCell:nth-child(4),.sudokuCell:nth-child(7)
+        {
+            border-left:2px solid black;
+        }
+
+        .sudokuRow:nth-child(3), .sudokuRow:nth-child(6)
+        {
+            border-bottom:2px solid black;
+        }
+
         .emptyCellCell
         {
             font-size:14px;
@@ -43,7 +53,7 @@
             <div class="col">
                 <div class="row">
                     <div class="col">
-                        Enter your data here, each row on a new line. Spaces to represent empty boxes. You don't need to fill in any trailing spaces.<br/>
+                        <label for="sudokuValue">Enter your data here, each row on a new line. Spaces to represent empty boxes. You don't need to fill in any trailing spaces.</label><br/>
                         <textarea id="sudokuValue" cols="20" rows="10"></textarea>
                     </div>
                 </div>

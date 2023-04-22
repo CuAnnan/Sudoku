@@ -8,6 +8,7 @@ class SudokuSpace
      * @see SudokuCell
      */
     cells;
+    solved= false;
 
     constructor()
     {
@@ -42,19 +43,7 @@ class SudokuSpace
     {
         let {knownValues, unknownCells} = this.getValues();
         let changes = 0;
-
-        for(let cell of this.cells)
-        {
-            if(cell.value)
-            {
-                knownValues.push(cell.value);
-            }
-            else
-            {
-                unknownCells.push(cell);
-            }
-        }
-
+        this.solved = unknownCells.length < 1;
         for(let cell of unknownCells)
         {
             changes += cell.makePass(knownValues);
@@ -125,6 +114,13 @@ class SudokuSpace
         let uniqueKnownValues = knownValues.filter(onlyUnique);
         return uniqueKnownValues.length === knownValues.length;
     }
+
+    makeGuess()
+    {
+        // get the unsolved cells
+        let {unknownCells} = this.getValues();
+        return unknownCells;
+    }
 }
 
 function onlyUnique(value, index, array)
@@ -145,6 +141,10 @@ class SudokuCell
      * The value of the cell, whether provided or derived
      */
     value;
+    /**
+     * The value of the guess that has been made against this cell.
+     */
+    guess;
 
     constructor(value)
     {
@@ -180,6 +180,19 @@ class SudokuCell
             return true;
         }
         return false;
+    }
+
+    makeGuess()
+    {
+        let possibleValues = [];
+        for(let [value, possible] of Object.entries(this.possibleValues))
+        {
+            if(possible)
+            {
+                possibleValues.push(value);
+            }
+        }
+        this.guess = possibleValues[Math.floor(Math.random() * possibleValues.length)];
     }
 }
 
@@ -224,6 +237,19 @@ class Sudoku
      * @see SudokuSpace
      */
     grids;
+    /**
+     * An array of strings of the names of valid search spaces
+     */
+    spaces;
+    /**
+     * For sequential animation, we need to check each space type one at a time
+     * This index is for the currently searched space type
+     */
+    currentSpaceTypeIndex;
+    /**
+     * This index is for the search space.
+     */
+    currentSpaceIndex;
 
     /**
      * Turns an array of numbers into a sudoku grid
@@ -237,6 +263,9 @@ class Sudoku
         this.rows = [];
         this.cols = [];
         this.grids = [];
+        this.spaces = ['rows', 'cols', 'grids'];
+        this.currentSpaceTypeIndex = 0;
+        this.currentSpaceIndex = 0;
 
 
         /*
@@ -252,7 +281,7 @@ class Sudoku
             {
                 let cell;
                 // if the cell has a value, create a solved cell, otherweise create an unsolved cell
-                if(values[i] && values[i][j])
+                if(values && values[i] && values[i][j])
                 {
                     cell = new SolvedSudokuCell(values[i][j])
                 }
@@ -343,6 +372,24 @@ class Sudoku
         return changed;
     }
 
+    makeBasicSearchSpacePass(space, i)
+    {
+        if(!this.spaces.includes(space))
+        {
+            throw new Error(`Unexpected search space ${space} provided.\nSpace must match one of ${this.spaces.join(', ')}`)
+        }
+        return this[space][i].makePass();
+    }
+
+    makeSingleAvailabilitySearchSpacePass(space, i)
+    {
+        if(!this.spaces.includes(space))
+        {
+            throw new Error(`Unexpected search space ${space} provided.\nSpace must match one of ${this.spaces.join(', ')}`)
+        }
+        return this[space][i].checkForSingleAvailabilities();
+    }
+
     /**
      * Check whether any single value cells have been derived.
      * @returns {boolean} Returns true if any cells have their values changed
@@ -417,7 +464,7 @@ class Sudoku
         $sudokuContainer.empty();
         for(let row = 0; row < 9; row ++)
         {
-            let $sudokuRow = $(`<div class="row"></div>`).appendTo($sudokuContainer);
+            let $sudokuRow = $(`<div class="row sudokuRow"></div>`).appendTo($sudokuContainer);
             for(let col = 0; col < 9; col++)
             {
                 let grid = Math.floor(row/3) * 3 + Math.floor(col/3);
@@ -489,18 +536,22 @@ class Sudoku
             $(`.space_${result.space}_${result.index}`).addClass('invalidSpace')
             return;
         }
-        let working = true;
-        while(working)
-        {
-            working = solver.makeBasicPass();
-            if(!working)
-            {
-                working = solver.checkForSingleAvailabilities();
-            }
-            showUpdatedGrid();
-        }
+        makePass();
+    }
 
+    function makePass()
+    {
+        let working = solver.makeBasicPass();
+        console.log(working);
+        if(!working)
+        {
+            working = solver.checkForSingleAvailabilities();
+        }
         showUpdatedGrid();
+        if(working)
+        {
+            timeout = window.setTimeout(makePass,500);
+        }
     }
 
     let allValues;
@@ -508,6 +559,7 @@ class Sudoku
     let $sudokuInput;
     let $sudokuContainer;
     let $solveButton;
+    let timeout;
 
     // jquery document onload handler
     $(function(){
