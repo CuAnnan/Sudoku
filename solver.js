@@ -25,6 +25,11 @@ class SudokuSpace
         this.cells.push(cell);
     }
 
+    get size()
+    {
+        return this.cells.length;
+    }
+
     /**
      * Fetch the SudokuCell from the given index
      * @param {Number} index
@@ -174,7 +179,9 @@ class SudokuCell
             this.remainingValues.delete(value);
             this.possibleValues[value] = false;
         }
+        return this;
     }
+
 
     /**
      * This method takes the values that are known by the search space it belongs to and sets those values in this cell
@@ -186,34 +193,33 @@ class SudokuCell
     makePass(knownValues)
     {
         this.updateKnownValues(knownValues)
-        let remainingPossibleValues = [];
         for(let [value, possible] of Object.entries(this.possibleValues))
         {
-            if(possible)
+            if(!possible)
             {
-                remainingPossibleValues.push(value);
+                this.remainingValues.delete(value);
             }
         }
 
-        if(remainingPossibleValues.length === 1)
+        if(this.remainingValues.size === 1)
         {
-            this.value = remainingPossibleValues[0];
+            [this.value] = this.remainingValues;
             return true;
         }
         return false;
     }
 
-    makeGuess()
+    setGuess(guess)
     {
-        let possibleValues = [];
-        for(let [value, possible] of Object.entries(this.possibleValues))
+        this.value = guess;
+        for(let value of this.remainingValues.values())
         {
-            if(possible)
+            if(value !== guess)
             {
-                possibleValues.push(value);
+                this.remainingValues.delete(value);
+                this.possibleValues[guess] = false;
             }
         }
-        this.guess = possibleValues[Math.floor(Math.random() * possibleValues.length)];
     }
 }
 
@@ -450,19 +456,44 @@ class Sudoku
         return changed;
     }
 
-    startGuessing()
+    /**
+     *
+     */
+    getSmallestCell()
     {
         let fewestRemainingValues = 10;
         let smallestCell = null;
-        for(let cell of this.allCells)
+        let x = -1, y = -1;
+        for(let i in this.rows)
         {
-            if(cell.remainingValues.size < fewestRemainingValues)
+            let row = this.rows[i];
+            for(let j = 0; j < row.size; j++)
             {
-                smallestCell = cell;
+                let cell = row.getCell(j);
+                if(cell.remainingValues.size > 1 && cell.remainingValues.size < fewestRemainingValues)
+                {
+                    smallestCell = cell;
+                    x = i;
+                    y = j;
+                }
             }
         }
-        smallestCell.makeGuess();
-        console.log(smallestCell.guess);
+        return {coords:{x:parseInt(x), y:parseInt(y)}, cell:smallestCell};
+    }
+
+    generateBranches()
+    {
+        let smallestCell = this.getSmallestCell();
+        let branches = [];
+        let currentStateAsArray = this.toArray();
+        for(let value of smallestCell.cell.remainingValues.values())
+        {
+            let branch = new Sudoku(currentStateAsArray);
+            let coords = smallestCell.coords;
+            branch.getCell(coords.x, coords.y).setGuess(value);
+            branches.push(branch);
+        }
+        return branches;
     }
 
     /**
@@ -564,26 +595,21 @@ class Sudoku
 
     function showUpdatedGrid()
     {
-        console.log('Here');
         buildSudokuHTML();
         for(let i = 0; i < 9; i ++)
         {
             for (let j = 0; j < 9; j++)
             {
                 let cell = solver.getCell(i, j);
-                console.log(cell.guess);
                 if(cell.value)
                 {
                     $(`#cell_${i}_${j}`).html(cell.value);
                 }
                 else if(cell.guess)
                 {
-                    console.log(cell.guess);
-                    console.log('This cell should be showing up as a guess')
                     $(`#cell_${i}_${j}`)
                         .addClass('guess')
                         .html(cell.value);
-
                 }
                 else
                 {
@@ -607,17 +633,49 @@ class Sudoku
         makePass();
     }
 
+    function makeBranchedPass()
+    {
+        let invalidBranchFound = false;
+        let foundBranch = false;
+        for(let branch of branches)
+        {
+            let branchWorking = branch.makeBasicPass();
+            if(!branchWorking)
+            {
+                branchWorking = branch.checkForSingleAvailabilities();
+            }
+            if(!foundBranch && branch.isSolved())
+            {
+                foundBranch = branch;
+            }
+            else if(!branch.validate())
+            {
+                invalidBranchFound = true;
+            }
+        }
+
+        if(foundBranch)
+        {
+            solver = foundBranch;
+            showUpdatedGrid();
+        }
+        else
+        {
+            timeout = window.setTimeout(makeBranchedPass, 50);
+        }
+    }
+
     function makePass()
     {
-        let working=    makeSinglePass();
+        let working= makeSinglePass();
         if(working)
         {
-            timeout = window.setTimeout(makePass,500);
+            timeout = window.setTimeout(makePass,50);
         }
         else if(!solver.isSolved())
         {
-            solver.startGuessing();
-            showUpdatedGrid();
+            branches = solver.generateBranches();
+            makeBranchedPass();
         }
     }
 
@@ -648,6 +706,7 @@ class Sudoku
     let $passButton;
     let $showHelpersToggle;
     let timeout;
+    let branches;
 
     // jquery document onload handler
     $(function(){
