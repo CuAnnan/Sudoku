@@ -57,8 +57,14 @@ class SudokuSpace
         {
             changes += cell.makePass(knownValues);
         }
-        return changes;
 
+        return changes;
+    }
+
+    isSolved()
+    {
+        let {knownValues, unknownCells} = this.getValues();
+        return unknownCells.length === 0;
     }
 
     /**
@@ -150,21 +156,22 @@ class SudokuCell
      * The value of the cell, whether provided or derived
      */
     value;
-    /**
-     * The value of the guess that has been made against this cell.
-     */
     guess;
+
+    remainingValues;
 
     constructor(value)
     {
         this.possibleValues = {1: true, 2:true, 3:true, 4:true, 5:true, 6:true, 7:true, 8:true, 9:true}
         this.value = value;
+        this.remainingValues= new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]);
     }
 
     updateKnownValues(knownValues)
     {
         for(let value of knownValues)
         {
+            this.remainingValues.delete(value);
             this.possibleValues[value] = false;
         }
     }
@@ -230,6 +237,16 @@ class UnsolvedSudokuCell extends SudokuCell
     }
 }
 
+class GuessedSudokuCell extends SudokuCell
+{
+    constructor(guess)
+    {
+        super();
+        this.guess = guess;
+    }
+
+}
+
 /**
  * This class represents the grid in total. A game of sudoku is broken up into a nine by nine grid. Each row, column
  * and subgrid of 3x3 must contain the numbers 1 - 9 once only.
@@ -277,6 +294,7 @@ class Sudoku
         this.rows = [];
         this.cols = [];
         this.grids = [];
+        this.allCells = [];
         this.spaces = ['rows', 'cols', 'grids'];
         this.currentSpaceTypeIndex = 0;
         this.currentSpaceIndex = 0;
@@ -303,6 +321,7 @@ class Sudoku
                 {
                     cell = new UnsolvedSudokuCell();
                 }
+                this.allCells.push(cell);
                 // add it to the row
                 row.addCell(cell);
             }
@@ -356,6 +375,11 @@ class Sudoku
         }
     }
 
+    findAmbivalentCells()
+    {
+
+    }
+
     /**
      * This method isn't currently used but will turn this SudokuGrid into an array of numbers identical to the
      * requirements of the constructor
@@ -375,6 +399,18 @@ class Sudoku
             values.push(rowValues);
         }
         return values;
+    }
+
+    isSolved()
+    {
+        for(let row of this.rows)
+        {
+            if(!row.isSolved())
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -412,6 +448,21 @@ class Sudoku
             changed = changed ||(rowChanged || colChanged || gridChanged);
         }
         return changed;
+    }
+
+    startGuessing()
+    {
+        let fewestRemainingValues = 10;
+        let smallestCell = null;
+        for(let cell of this.allCells)
+        {
+            if(cell.remainingValues.size < fewestRemainingValues)
+            {
+                smallestCell = cell;
+            }
+        }
+        smallestCell.makeGuess();
+        console.log(smallestCell.guess);
     }
 
     /**
@@ -484,7 +535,6 @@ class Sudoku
     {
         buildSudokuHTML();
         let rawInput = $sudokuInput.val();
-        console.log(rawInput);
         let rows = rawInput.split('\n');
         allValues = [];
         let valid = rows.length === 9;
@@ -514,15 +564,26 @@ class Sudoku
 
     function showUpdatedGrid()
     {
+        console.log('Here');
         buildSudokuHTML();
         for(let i = 0; i < 9; i ++)
         {
             for (let j = 0; j < 9; j++)
             {
                 let cell = solver.getCell(i, j);
+                console.log(cell.guess);
                 if(cell.value)
                 {
                     $(`#cell_${i}_${j}`).html(cell.value);
+                }
+                else if(cell.guess)
+                {
+                    console.log(cell.guess);
+                    console.log('This cell should be showing up as a guess')
+                    $(`#cell_${i}_${j}`)
+                        .addClass('guess')
+                        .html(cell.value);
+
                 }
                 else
                 {
@@ -552,6 +613,11 @@ class Sudoku
         if(working)
         {
             timeout = window.setTimeout(makePass,500);
+        }
+        else if(!solver.isSolved())
+        {
+            solver.startGuessing();
+            showUpdatedGrid();
         }
     }
 
@@ -589,6 +655,10 @@ class Sudoku
         $sudokuInput = $('#sudokuValue').on("input", ()=>{
             buildRelevantGrid();
         });
+
+        let sheet = document.styleSheets[1];
+        let rule = sheet.cssRules[7];
+
         $solveButton = $('#solveButton').on('click', ()=>{solveSodoku();});
         $passButton = $('#passButton').on('click', ()=>{makeSinglePass();});
         buildRelevantGrid();
@@ -596,11 +666,11 @@ class Sudoku
         let shower = ()=>{
             if($showHelpersToggle.is(':checked'))
             {
-                $emptyCellCells.show();
+                rule.style.display = 'block';
             }
             else
             {
-                $emptyCellCells.hide();
+                rule.style.display = 'none';
             }
         };
 
